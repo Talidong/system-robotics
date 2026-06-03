@@ -12,21 +12,31 @@ import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NotificationBell from '../../components/notifications/NotificationBell';
 import { getDevicesByTeam, controlDevice, updateDeviceSchedule } from '../../service/deviceService';
+
 const { width: SCREEN_W } = Dimensions.get('window');
+
 const TEAMS = [
   { id: 1, label: 'Team A', icon: 'leaf' },
   { id: 2, label: 'Team B', icon: 'water' },
   { id: 3, label: 'Team C', icon: 'sunny' },
   { id: 4, label: 'Team D', icon: 'flask' },
 ];
+
 const DEVICE_CONFIG = {
   water_pump:    { icon: 'water',        gradient: ['#0ea5e9', '#2563eb'], label: 'Water Pump'    },
   nutrient_pump: { icon: 'flask',        gradient: ['#a855f7', '#7c3aed'], label: 'Nutrient Pump' },
   grow_lights:   { icon: 'sunny',        gradient: ['#f59e0b', '#e67e22'], label: 'Grow Lights'   },
   fan:           { icon: 'thunderstorm', gradient: ['#06b6d4', '#0891b2'], label: 'Fan'           },
 };
+
+// ← Devices na walang hardware
+const MAINTENANCE_DEVICES = ['nutrient_pump', 'grow_lights', 'fan'];
+
 const getDeviceConfig = (type) =>
   DEVICE_CONFIG[type] || { icon: 'hardware-chip', gradient: ['#64748b', '#475569'], label: type };
+
+const isMaintenance = (deviceType) => MAINTENANCE_DEVICES.includes(deviceType);
+
 export default function ControlScreen() {
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -36,6 +46,7 @@ export default function ControlScreen() {
   const [userTeamId, setUserTeamId] = useState(null);
   const [togglingId, setTogglingId] = useState(null);
   const [userAvatar, setUserAvatar] = useState(null);
+
   // Schedule modal
   const [scheduleModal, setScheduleModal] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState(null);
@@ -44,11 +55,13 @@ export default function ControlScreen() {
   const [runDuration, setRunDuration] = useState('');
   const [intervalTime, setIntervalTime] = useState('');
   const [savingSchedule, setSavingSchedule] = useState(false);
+
   useFocusEffect(
     useCallback(() => {
       loadUser();
     }, [selectedTeam])
   );
+
   const loadUser = async () => {
     const raw = await AsyncStorage.getItem('user');
     if (raw) {
@@ -60,22 +73,26 @@ export default function ControlScreen() {
     setUserAvatar(profile.avatar || null);
     await loadDevices();
   };
+
   const loadDevices = async () => {
     setLoading(true);
     const data = await getDevicesByTeam(selectedTeam.id);
     setDevices(data);
     setLoading(false);
   };
+
   const onRefresh = async () => {
     setRefreshing(true);
     const data = await getDevicesByTeam(selectedTeam.id);
     setDevices(data);
     setRefreshing(false);
   };
+
   const canControl = (device) => {
     if (userRole === 'admin') return true;
     return device.team_id === userTeamId;
   };
+
   const handleToggle = async (device, newStatus) => {
     if (!canControl(device)) {
       Alert.alert('Access Denied', 'You can only control devices assigned to your team.');
@@ -95,6 +112,7 @@ export default function ControlScreen() {
       setTogglingId(null);
     }
   };
+
   const handleOpenSchedule = (device) => {
     if (!canControl(device)) {
       Alert.alert('Access Denied', 'You can only update devices assigned to your team.');
@@ -107,6 +125,7 @@ export default function ControlScreen() {
     setIntervalTime(device.interval_time ? String(device.interval_time) : '');
     setScheduleModal(true);
   };
+
   const handleSaveSchedule = async () => {
     if (!selectedDevice) return;
     setSavingSchedule(true);
@@ -132,11 +151,14 @@ export default function ControlScreen() {
       setSavingSchedule(false);
     }
   };
+
   const formatTime = (timeStr) => {
     if (!timeStr) return '—';
     return timeStr.substring(0, 5);
   };
+
   const userTeamLabel = userTeamId === 1 ? 'A' : userTeamId === 2 ? 'B' : userTeamId === 3 ? 'C' : 'D';
+
   return (
     <SafeAreaView style={styles.container}>
       {/* ── Header ── */}
@@ -168,6 +190,7 @@ export default function ControlScreen() {
           <NotificationBell />
         </View>
       </View>
+
       {/* ── Team Selector ── */}
       <View style={styles.teamSelectorWrapper}>
         <ScrollView
@@ -185,11 +208,7 @@ export default function ControlScreen() {
                 activeOpacity={0.7}
               >
                 <View style={[styles.teamIconCircle, active && styles.teamIconCircleActive]}>
-                  <Ionicons
-                    name={team.icon}
-                    size={16}
-                    color={active ? '#fff' : '#7a8a6e'}
-                  />
+                  <Ionicons name={team.icon} size={16} color={active ? '#fff' : '#7a8a6e'} />
                 </View>
                 <Text style={[styles.teamBtnText, active && styles.teamBtnTextActive]}>
                   {team.label}
@@ -199,6 +218,7 @@ export default function ControlScreen() {
           })}
         </ScrollView>
       </View>
+
       {/* ── Info Banner ── */}
       {userRole !== 'admin' && (
         <View style={styles.infoBanner}>
@@ -210,6 +230,7 @@ export default function ControlScreen() {
           </Text>
         </View>
       )}
+
       {loading ? (
         <View style={styles.loadingWrapper}>
           <View style={styles.loadingCircle}>
@@ -233,6 +254,7 @@ export default function ControlScreen() {
               <Text style={styles.deviceCountText}>{devices.length}</Text>
             </View>
           </View>
+
           {devices.length === 0 ? (
             <View style={styles.emptyWrapper}>
               <View style={styles.emptyIconCircle}>
@@ -248,9 +270,49 @@ export default function ControlScreen() {
               const locked = !canControl(device);
               const isToggling = togglingId === device.control_id;
               const accentColor = config.gradient[0];
+              const underMaintenance = isMaintenance(device.device_type); // ← check
+
+              // ── Maintenance Device Card ──
+              if (underMaintenance) {
+                return (
+                  <View key={device.control_id} style={styles.maintenanceCard}>
+                    <View style={styles.maintenanceStripe} />
+                    <View style={styles.maintenanceInner}>
+                      {/* Top row */}
+                      <View style={styles.deviceTopRow}>
+                        <View style={styles.maintenanceIconBox}>
+                          <Ionicons name={config.icon} size={24} color="#b0b8c1" />
+                        </View>
+                        <View style={styles.deviceInfo}>
+                          <Text style={styles.maintenanceDeviceName}>{device.device_name}</Text>
+                          <Text style={styles.deviceType}>{config.label}</Text>
+                        </View>
+                        {/* Maintenance badge top-right */}
+                        <View style={styles.maintenanceBadge}>
+                          <Ionicons name="construct-outline" size={11} color="#8a95a3" />
+                          <Text style={styles.maintenanceBadgeText}>Maintenance</Text>
+                        </View>
+                      </View>
+                      {/* Divider */}
+                      <View style={styles.cardDivider} />
+                      {/* Bottom row */}
+                      <View style={styles.deviceBottomRow}>
+                        <View style={styles.maintenanceStatusChip}>
+                          <View style={[styles.statusDot, { backgroundColor: '#c8d0d8' }]} />
+                          <Text style={styles.maintenanceStatusText}>Unavailable</Text>
+                        </View>
+                        <Text style={styles.maintenanceSubText}>
+                          Hardware not yet installed
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                );
+              }
+
+              // ── Normal Device Card ──
               return (
                 <View key={device.control_id} style={[styles.deviceCard, locked && styles.deviceCardLocked]}>
-                  {/* ── Card inner ── */}
                   <View style={styles.deviceCardInner}>
                     {/* Top Row */}
                     <View style={styles.deviceTopRow}>
@@ -258,20 +320,12 @@ export default function ControlScreen() {
                         style={[
                           styles.deviceIconBox,
                           {
-                            backgroundColor: locked
-                              ? 'rgba(0,0,0,0.04)'
-                              : accentColor + '14',
-                            borderColor: locked
-                              ? 'rgba(0,0,0,0.06)'
-                              : accentColor + '25',
+                            backgroundColor: locked ? 'rgba(0,0,0,0.04)' : accentColor + '14',
+                            borderColor: locked ? 'rgba(0,0,0,0.06)' : accentColor + '25',
                           },
                         ]}
                       >
-                        <Ionicons
-                          name={config.icon}
-                          size={24}
-                          color={locked ? '#b5b5b5' : accentColor}
-                        />
+                        <Ionicons name={config.icon} size={24} color={locked ? '#b5b5b5' : accentColor} />
                       </View>
                       <View style={styles.deviceInfo}>
                         <Text style={[styles.deviceName, locked && styles.deviceNameLocked]}>
@@ -299,11 +353,10 @@ export default function ControlScreen() {
                         </View>
                       )}
                     </View>
-                    {/* ── Divider ── */}
+                    {/* Divider */}
                     <View style={styles.cardDivider} />
-                    {/* ── Bottom row ── */}
+                    {/* Bottom row */}
                     <View style={styles.deviceBottomRow}>
-                      {/* Status chip */}
                       <View
                         style={[
                           styles.statusChip,
@@ -313,22 +366,11 @@ export default function ControlScreen() {
                           },
                         ]}
                       >
-                        <View
-                          style={[
-                            styles.statusDot,
-                            { backgroundColor: isOn ? '#22c55e' : '#bbb' },
-                          ]}
-                        />
-                        <Text
-                          style={[
-                            styles.statusText,
-                            { color: isOn ? '#16a34a' : '#aaa' },
-                          ]}
-                        >
+                        <View style={[styles.statusDot, { backgroundColor: isOn ? '#22c55e' : '#bbb' }]} />
+                        <Text style={[styles.statusText, { color: isOn ? '#16a34a' : '#aaa' }]}>
                           {isOn ? 'On' : 'Off'}
                         </Text>
                       </View>
-                      {/* Schedule info */}
                       {(device.start_time || device.run_duration) ? (
                         <View style={styles.scheduleInfoChip}>
                           <Ionicons name="time-outline" size={12} color="#8a9a7e" />
@@ -340,7 +382,6 @@ export default function ControlScreen() {
                           </Text>
                         </View>
                       ) : null}
-                      {/* Schedule button */}
                       {!locked && (
                         <TouchableOpacity
                           style={styles.scheduleBtn}
@@ -360,6 +401,7 @@ export default function ControlScreen() {
           <View style={{ height: 100 }} />
         </ScrollView>
       )}
+
       {/* ── Schedule Modal ── */}
       <Modal
         visible={scheduleModal}
@@ -369,24 +411,17 @@ export default function ControlScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            {/* Handle bar */}
             <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
               <View>
                 <Text style={styles.modalLabel}>Schedule</Text>
-                <Text style={styles.modalTitle}>
-                  {selectedDevice?.device_name}
-                </Text>
+                <Text style={styles.modalTitle}>{selectedDevice?.device_name}</Text>
               </View>
-              <TouchableOpacity
-                style={styles.modalCloseBtn}
-                onPress={() => setScheduleModal(false)}
-              >
+              <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setScheduleModal(false)}>
                 <Ionicons name="close" size={20} color="#666" />
               </TouchableOpacity>
             </View>
             <View style={styles.modalDivider} />
-            {/* Time inputs row */}
             <View style={styles.inputRow}>
               <View style={styles.inputHalf}>
                 <View style={styles.inputLabelRow}>
@@ -468,314 +503,215 @@ export default function ControlScreen() {
     </SafeAreaView>
   );
 }
+
 /* ─────────────── Styles ─────────────── */
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#EFF4BE' },
   /* ── Header ── */
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 18,
-    paddingVertical: 14,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(58,107,71,0.08)',
-    elevation: 3,
-    shadowColor: '#2d5a3a',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 18, paddingVertical: 14, backgroundColor: '#fff',
+    borderBottomWidth: 1, borderBottomColor: 'rgba(58,107,71,0.08)',
+    elevation: 3, shadowColor: '#2d5a3a',
+    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8,
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   avatarRing: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 2,
-    borderColor: '#3a6b47',
-    padding: 2,
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: 44, height: 44, borderRadius: 22, borderWidth: 2, borderColor: '#3a6b47',
+    padding: 2, justifyContent: 'center', alignItems: 'center',
   },
   avatar: { width: 36, height: 36, borderRadius: 18 },
   headerSub: { fontSize: 11, color: '#8a9a7e', fontWeight: '500', letterSpacing: 0.5 },
   headerTitle: { fontSize: 16, fontWeight: '800', color: '#2d4a35', letterSpacing: 0.2 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   roleBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#edf5e8',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#d5e6cc',
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: '#edf5e8', paddingHorizontal: 10, paddingVertical: 5,
+    borderRadius: 20, borderWidth: 1, borderColor: '#d5e6cc',
   },
   roleBadgeText: { fontSize: 11, fontWeight: '700', color: '#3a6b47' },
   /* ── Team Selector ── */
   teamSelectorWrapper: {
-    backgroundColor: '#fff',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(58,107,71,0.06)',
+    backgroundColor: '#fff', paddingVertical: 12,
+    borderBottomWidth: 1, borderBottomColor: 'rgba(58,107,71,0.06)',
   },
   teamSelector: { paddingHorizontal: 18, gap: 10 },
   teamBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 14,
-    backgroundColor: '#f7f7f2',
-    borderWidth: 1.5,
-    borderColor: '#e8e8dc',
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 16, paddingVertical: 10,
+    borderRadius: 14, backgroundColor: '#f7f7f2',
+    borderWidth: 1.5, borderColor: '#e8e8dc',
   },
   teamBtnActive: {
-    backgroundColor: '#3a6b47',
-    borderColor: '#3a6b47',
-    elevation: 3,
-    shadowColor: '#3a6b47',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
+    backgroundColor: '#3a6b47', borderColor: '#3a6b47', elevation: 3,
+    shadowColor: '#3a6b47', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25, shadowRadius: 6,
   },
   teamIconCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
+    width: 28, height: 28, borderRadius: 8,
     backgroundColor: 'rgba(122,138,110,0.12)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'center', alignItems: 'center',
   },
-  teamIconCircleActive: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-  },
+  teamIconCircleActive: { backgroundColor: 'rgba(255,255,255,0.2)' },
   teamBtnText: { fontSize: 13, fontWeight: '700', color: '#7a8a6e' },
   teamBtnTextActive: { color: '#fff' },
   /* ── Info Banner ── */
   infoBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#e4f0dc',
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#d0e0c4',
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#e4f0dc', paddingHorizontal: 18, paddingVertical: 10,
+    borderBottomWidth: 1, borderBottomColor: '#d0e0c4',
   },
   infoBannerIcon: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 24, height: 24, borderRadius: 12,
     backgroundColor: 'rgba(58,107,71,0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'center', alignItems: 'center',
   },
   infoBannerText: { fontSize: 12, color: '#3a6b47', fontWeight: '500', flex: 1 },
   /* ── Loading ── */
   loadingWrapper: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 14 },
   loadingCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 60, height: 60, borderRadius: 30,
     backgroundColor: 'rgba(58,107,71,0.08)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'center', alignItems: 'center',
   },
   loadingText: { fontSize: 13, color: '#8a9a7e', fontWeight: '500' },
   /* ── List ── */
   listContent: { padding: 18 },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 16,
-  },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
   sectionTitle: { fontSize: 15, fontWeight: '800', color: '#3a5040', flex: 1, letterSpacing: 0.2 },
   deviceCountBadge: {
-    backgroundColor: '#3a6b47',
-    width: 26,
-    height: 26,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: '#3a6b47', width: 26, height: 26, borderRadius: 8,
+    justifyContent: 'center', alignItems: 'center',
   },
   deviceCountText: { fontSize: 12, fontWeight: '800', color: '#fff' },
   /* ── Empty ── */
   emptyWrapper: { alignItems: 'center', marginTop: 60, gap: 8 },
   emptyIconCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 24,
+    width: 72, height: 72, borderRadius: 24,
     backgroundColor: 'rgba(58,107,71,0.06)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
+    justifyContent: 'center', alignItems: 'center', marginBottom: 8,
   },
   emptyTitle: { fontSize: 16, fontWeight: '700', color: '#8a9a7e' },
   emptySub: { fontSize: 13, color: '#aab89e' },
-  /* ── Device Card ── */
-  deviceCard: {
+  /* ── Maintenance Card ── */
+  maintenanceCard: {
     marginBottom: 14,
     borderRadius: 18,
-    backgroundColor: '#fff',
-    elevation: 3,
-    shadowColor: '#2d5a3a',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(58,107,71,0.06)',
+    backgroundColor: '#f0f2f5',
+    borderWidth: 1.5,
+    borderColor: '#dde1e7',
+    borderStyle: 'dashed',
+    overflow: 'hidden',
+    opacity: 0.85,
+  },
+  maintenanceStripe: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    opacity: 0.03, backgroundColor: '#000',
+  },
+  maintenanceInner: { padding: 16 },
+  maintenanceIconBox: {
+    width: 50, height: 50, borderRadius: 16,
+    backgroundColor: '#e4e8ed',
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1.5, borderColor: '#d5dae0',
+  },
+  maintenanceDeviceName: { fontSize: 16, fontWeight: '800', color: '#9aa3ad', letterSpacing: 0.1 },
+  maintenanceBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: '#e4e8ed', paddingHorizontal: 10, paddingVertical: 5,
+    borderRadius: 20, borderWidth: 1, borderColor: '#d5dae0',
+  },
+  maintenanceBadgeText: { fontSize: 10, fontWeight: '700', color: '#8a95a3', letterSpacing: 0.3 },
+  maintenanceStatusChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 10, paddingVertical: 5,
+    borderRadius: 20, backgroundColor: '#e8eaed',
+    borderWidth: 1, borderColor: '#d5dae0',
+  },
+  maintenanceStatusText: { fontSize: 11, fontWeight: '700', color: '#9aa3ad' },
+  maintenanceSubText: { fontSize: 11, color: '#b0b8c1', fontStyle: 'italic', marginLeft: 4 },
+  /* ── Normal Device Card ── */
+  deviceCard: {
+    marginBottom: 14, borderRadius: 18, backgroundColor: '#fff',
+    elevation: 3, shadowColor: '#2d5a3a',
+    shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 10,
+    borderWidth: 1, borderColor: 'rgba(58,107,71,0.06)',
   },
   deviceCardLocked: { opacity: 0.65 },
   deviceCardInner: { padding: 16 },
   deviceTopRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   deviceIconBox: {
-    width: 50,
-    height: 50,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1.5,
+    width: 50, height: 50, borderRadius: 16,
+    justifyContent: 'center', alignItems: 'center', borderWidth: 1.5,
   },
   deviceInfo: { flex: 1 },
   deviceName: { fontSize: 16, fontWeight: '800', color: '#1e3a28', letterSpacing: 0.1 },
   deviceNameLocked: { color: '#b0b0b0' },
   deviceType: { fontSize: 12, color: '#8a9a7e', marginTop: 2, fontWeight: '500' },
   lockBadge: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: '#f5f5f0',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#e8e8e0',
+    width: 38, height: 38, borderRadius: 12, backgroundColor: '#f5f5f0',
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1, borderColor: '#e8e8e0',
   },
   toggleArea: { justifyContent: 'center', alignItems: 'center', minWidth: 52 },
-  /* Divider */
   cardDivider: {
-    height: 1,
-    backgroundColor: 'rgba(58,107,71,0.06)',
-    marginVertical: 14,
-    marginHorizontal: -2,
+    height: 1, backgroundColor: 'rgba(58,107,71,0.06)',
+    marginVertical: 14, marginHorizontal: -2,
   },
-  /* Bottom row */
-  deviceBottomRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flexWrap: 'wrap',
-  },
+  deviceBottomRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   statusChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-    borderWidth: 1,
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 10, paddingVertical: 5,
+    borderRadius: 20, borderWidth: 1,
   },
   statusDot: { width: 7, height: 7, borderRadius: 4 },
   statusText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.3 },
   scheduleInfoChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
-    backgroundColor: '#f5f7f0',
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 8, paddingVertical: 4,
+    borderRadius: 10, backgroundColor: '#f5f7f0',
   },
   scheduleInfoText: { fontSize: 11, color: '#8a9a7e', fontWeight: '500' },
   scheduleBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 10,
-    backgroundColor: '#edf5e8',
-    borderWidth: 1,
-    borderColor: '#d5e6cc',
-    marginLeft: 'auto',
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 12, paddingVertical: 6,
+    borderRadius: 10, backgroundColor: '#edf5e8',
+    borderWidth: 1, borderColor: '#d5e6cc', marginLeft: 'auto',
   },
   scheduleBtnText: { fontSize: 12, color: '#3a6b47', fontWeight: '700' },
   /* ── Modal ── */
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    justifyContent: 'flex-end',
-  },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
   modalCard: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingHorizontal: 24,
-    paddingBottom: 32,
-    paddingTop: 12,
+    backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    paddingHorizontal: 24, paddingBottom: 32, paddingTop: 12,
   },
   modalHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#ddd',
-    alignSelf: 'center',
-    marginBottom: 16,
+    width: 40, height: 4, borderRadius: 2, backgroundColor: '#ddd',
+    alignSelf: 'center', marginBottom: 16,
   },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   modalLabel: { fontSize: 12, color: '#8a9a7e', fontWeight: '600', letterSpacing: 0.5 },
   modalTitle: { fontSize: 18, fontWeight: '800', color: '#1e3a28', marginTop: 2 },
   modalCloseBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    backgroundColor: '#f5f5f0',
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: 36, height: 36, borderRadius: 12, backgroundColor: '#f5f5f0',
+    justifyContent: 'center', alignItems: 'center',
   },
-  modalDivider: {
-    height: 1,
-    backgroundColor: '#eee',
-    marginBottom: 20,
-  },
+  modalDivider: { height: 1, backgroundColor: '#eee', marginBottom: 20 },
   inputRow: { flexDirection: 'row', gap: 12, marginBottom: 16 },
   inputHalf: { flex: 1 },
   inputLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 8 },
   inputLabel: { fontSize: 12, color: '#666', fontWeight: '600' },
   input: {
-    borderWidth: 1.5,
-    borderColor: '#e5e5dc',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    fontSize: 15,
-    color: '#333',
-    backgroundColor: '#fafaf6',
-    fontWeight: '600',
+    borderWidth: 1.5, borderColor: '#e5e5dc', borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 13,
+    fontSize: 15, color: '#333', backgroundColor: '#fafaf6', fontWeight: '600',
   },
   saveBtn: {
-    backgroundColor: '#3a6b47',
-    marginTop: 8,
-    paddingVertical: 15,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 8,
-    elevation: 3,
-    shadowColor: '#3a6b47',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
+    backgroundColor: '#3a6b47', marginTop: 8, paddingVertical: 15,
+    borderRadius: 14, alignItems: 'center', justifyContent: 'center',
+    flexDirection: 'row', gap: 8, elevation: 3,
+    shadowColor: '#3a6b47', shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25, shadowRadius: 8,
   },
   saveBtnText: { color: '#fff', fontWeight: '800', fontSize: 15, letterSpacing: 0.3 },
 });

@@ -1,17 +1,24 @@
 // src/screens/plants/PlantDetailScreen.jsx
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, Image,
+  TouchableOpacity, Image, Alert, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { getPlantData, getDaysLeft, getHarvestProgress } from '../../constants/plantData';
+import { updatePlant } from '../../service/plantService';
 
 const TEAM_NAMES = { 1: 'Team A', 2: 'Team B', 3: 'Team C', 4: 'Team D' };
 const PLANT_COLORS = ['#4a7c59', '#2196F3', '#FF5722', '#9C27B0'];
-
 export default function PlantDetailScreen({ route, navigation }) {
+  const [resetting, setResetting] = useState(false); // ← ilipat dito
+
+  if (!route.params?.plant) {
+    navigation.goBack();
+    return null;
+  }
+
   const { plant } = route.params;
 
   const plantData = getPlantData(plant.plant_name);
@@ -25,6 +32,40 @@ export default function PlantDetailScreen({ route, navigation }) {
         year: 'numeric', month: 'long', day: 'numeric',
       })
     : '—';
+
+  const handleResetProgress = () => {
+    Alert.alert(
+      'Reset Harvest Progress',
+      'Ire-reset ang progress pabalik sa 0%. Ang date planted ay magiging today at ang growth stage ay babalik sa Seedling. Continue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reset',
+          style: 'destructive',
+          onPress: async () => {
+            setResetting(true);
+            try {
+              const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+              await updatePlant(plant.plant_id, {
+                team_id: plant.team_id,
+                plant_name: plant.plant_name,
+                date_planted: today,
+                growth_stage: 'Seedling',
+                image_url: plant.image_url || null,
+              });
+              Alert.alert('Success', 'Harvest progress has been reset!', [
+                { text: 'OK', onPress: () => navigation.goBack() },
+              ]);
+            } catch {
+              Alert.alert('Error', 'Failed to reset progress. Try again.');
+            } finally {
+              setResetting(false);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -113,6 +154,22 @@ export default function PlantDetailScreen({ route, navigation }) {
           <View style={styles.progressBarBg}>
             <View style={[styles.progressBarFill, { width: `${progress}%`, backgroundColor: accentColor }]} />
           </View>
+
+          {/* Reset Progress Button */}
+          <TouchableOpacity
+            style={[styles.resetBtn, resetting && { opacity: 0.6 }]}
+            onPress={handleResetProgress}
+            disabled={resetting}
+          >
+            {resetting ? (
+              <ActivityIndicator size="small" color="#E53935" />
+            ) : (
+              <>
+                <Ionicons name="refresh-outline" size={15} color="#E53935" />
+                <Text style={styles.resetBtnText}>Reset Progress</Text>
+              </>
+            )}
+          </TouchableOpacity>
         </View>
 
         {/* Back button */}
@@ -205,8 +262,18 @@ const styles = StyleSheet.create({
   progressBarBg: {
     height: 10, backgroundColor: '#f0f0f0',
     borderRadius: 5, overflow: 'hidden',
+    marginBottom: 14,
   },
   progressBarFill: { height: '100%', borderRadius: 5 },
+
+  // Reset button
+  resetBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, paddingVertical: 10, borderRadius: 8,
+    borderWidth: 1.5, borderColor: '#E53935',
+    backgroundColor: 'rgba(229, 57, 53, 0.06)',
+  },
+  resetBtnText: { fontSize: 13, fontWeight: '700', color: '#E53935' },
 
   // Back button
   backToListBtn: {

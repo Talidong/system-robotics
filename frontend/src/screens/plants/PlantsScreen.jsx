@@ -14,6 +14,9 @@ import { getAllPlants, createPlant, deletePlant, updatePlant, getTeamName } from
 import { getProfile } from '../../service/userStorage';
 import NotificationBell from '../../components/notifications/NotificationBell';
 
+const CLOUDINARY_CLOUD_NAME = 'dhk6qr5is';
+const CLOUDINARY_UPLOAD_PRESET = 'Archie 2nd';
+
 const TEAMS = [
   { id: 0, label: 'All' },
   { id: 1, label: 'Team A' },
@@ -36,6 +39,7 @@ export default function PlantsScreen() {
   const [userId, setUserId] = useState(null);
   const [userRole, setUserRole] = useState('user');
   const [userAvatar, setUserAvatar] = useState(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   const [imageUrlModalVisible, setImageUrlModalVisible] = useState(false);
   const [selectedPlant, setSelectedPlant] = useState(null);
@@ -91,16 +95,48 @@ export default function PlantsScreen() {
     ? plants
     : plants.filter(p => p.team_id === selectedTeam);
 
-  const pickImage = async () => {
+  // ─── Cloudinary Upload ────────────────────────────────────────────────────
+  const pickAndUploadImage = async (setterFn, setUploading) => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [16, 9],
       quality: 0.8,
     });
-    if (!result.canceled) return result.assets[0].uri;
-    return null;
+
+    if (result.canceled) return;
+
+    const localUri = result.assets[0].uri;
+    setUploading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', {
+        uri: localUri,
+        type: 'image/jpeg',
+        name: 'plant.jpg',
+      });
+      formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+      formData.append('cloud_name', CLOUDINARY_CLOUD_NAME);
+
+      const res = await fetch(
+        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+        { method: 'POST', body: formData }
+      );
+      const data = await res.json();
+
+      if (data.secure_url) {
+        setterFn(data.secure_url);
+      } else {
+        Alert.alert('Upload Failed', data.error?.message || 'Hindi na-upload ang image. Try again.');
+      }
+    } catch (err) {
+      Alert.alert('Upload Failed', 'Hindi na-upload ang image. Check your connection.');
+    } finally {
+      setUploading(false);
+    }
   };
+  // ─────────────────────────────────────────────────────────────────────────
 
   const handleAddPlant = async () => {
     if (!plantName.trim() || !datePlanted.trim()) {
@@ -252,12 +288,18 @@ export default function PlantsScreen() {
             </View>
           ) : (
             filteredPlants.map((plant) => (
-              <TouchableOpacity
-                key={plant.plant_id}
-                style={styles.plantCard}
-                onPress={() => navigation.navigate('PlantDetail', { plant })}
-                activeOpacity={0.85}
-              >
+            <TouchableOpacity
+  key={plant.plant_id}
+  style={styles.plantCard}
+  onPress={() => {
+  if (isAdmin && !plant.image_url) {
+    handleOpenImageModal(plant); // ← buksan ang image modal kapag walang image
+  } else {
+    navigation.navigate('PlantDetail', { plant });
+  }
+}}
+  activeOpacity={0.85}
+>
                 {plant.image_url ? (
                   <Image
                     source={{ uri: plant.image_url }}
@@ -300,9 +342,12 @@ export default function PlantsScreen() {
                 </View>
 
                 {isAdmin && plant.image_url && (
-                  <View style={styles.cameraOverlay}>
+                  <TouchableOpacity
+                    style={styles.cameraOverlay}
+                    onPress={() => handleOpenImageModal(plant)}
+                  >
                     <Ionicons name="camera-outline" size={18} color="#fff" />
-                  </View>
+                  </TouchableOpacity>
                 )}
 
                 {isAdmin && (
@@ -365,16 +410,23 @@ export default function PlantsScreen() {
 
               <Text style={styles.inputLabel}>Plant Image</Text>
               <TouchableOpacity
-                style={styles.pickImageBtn}
-                onPress={async () => {
-                  const uri = await pickImage();
-                  if (uri) setImageUrl(uri);
-                }}
+                style={[styles.pickImageBtn, uploadingImage && { opacity: 0.6 }]}
+                onPress={() => pickAndUploadImage(setImageUrl, setUploadingImage)}
+                disabled={uploadingImage}
               >
-                <Ionicons name="image-outline" size={20} color="#4a7c59" />
-                <Text style={styles.pickImageBtnText}>
-                  {imageUrl ? 'Change Image' : 'Pick from Gallery'}
-                </Text>
+                {uploadingImage ? (
+                  <>
+                    <ActivityIndicator size="small" color="#4a7c59" />
+                    <Text style={styles.pickImageBtnText}>Uploading...</Text>
+                  </>
+                ) : (
+                  <>
+                    <Ionicons name="image-outline" size={20} color="#4a7c59" />
+                    <Text style={styles.pickImageBtnText}>
+                      {imageUrl ? 'Change Image' : 'Pick from Gallery'}
+                    </Text>
+                  </>
+                )}
               </TouchableOpacity>
               {imageUrl ? (
                 <Image source={{ uri: imageUrl }} style={styles.imagePreview} resizeMode="cover" />
@@ -421,9 +473,9 @@ export default function PlantsScreen() {
               </View>
 
               <TouchableOpacity
-                style={[styles.addBtn, saving && { opacity: 0.6 }]}
+                style={[styles.addBtn, (saving || uploadingImage) && { opacity: 0.6 }]}
                 onPress={handleAddPlant}
-                disabled={saving}
+                disabled={saving || uploadingImage}
               >
                 {saving
                   ? <ActivityIndicator color="#fff" />
@@ -453,14 +505,21 @@ export default function PlantsScreen() {
             </View>
 
             <TouchableOpacity
-              style={styles.pickImageBtn}
-              onPress={async () => {
-                const uri = await pickImage();
-                if (uri) setTempImageUrl(uri);
-              }}
+              style={[styles.pickImageBtn, updatingImage && { opacity: 0.6 }]}
+              onPress={() => pickAndUploadImage(setTempImageUrl, setUpdatingImage)}
+              disabled={updatingImage}
             >
-              <Ionicons name="image-outline" size={20} color="#4a7c59" />
-              <Text style={styles.pickImageBtnText}>Pick from Gallery</Text>
+              {updatingImage ? (
+                <>
+                  <ActivityIndicator size="small" color="#4a7c59" />
+                  <Text style={styles.pickImageBtnText}>Uploading...</Text>
+                </>
+              ) : (
+                <>
+                  <Ionicons name="image-outline" size={20} color="#4a7c59" />
+                  <Text style={styles.pickImageBtnText}>Pick from Gallery</Text>
+                </>
+              )}
             </TouchableOpacity>
 
             <Text style={[styles.inputLabel, { textAlign: 'center', color: '#bbb', marginTop: 14 }]}>— or paste URL —</Text>
@@ -540,6 +599,7 @@ const styles = StyleSheet.create({
   },
   plantCardContent: {
     position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16,
+    backgroundColor: 'rgba(0,0,0,0.35)',
   },
   plantCardTopRow: {
     flexDirection: 'row', justifyContent: 'space-between',

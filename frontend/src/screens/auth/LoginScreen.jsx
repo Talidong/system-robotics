@@ -78,9 +78,9 @@ export default function LoginScreen({ navigation }) {
 
         {/* Logo */}
         <View style={styles.logoWrapper}>
-          <Image source={require('../../../assets/icon.png')} style={styles.logo} />
-          <Text style={styles.appName}>DhydroQuack</Text>
-          <Text style={styles.tagline}>Smart Hydroponics Monitoring</Text>
+          <Image source={require('../../assets/DHydroQuackLogo 1.png')} style={styles.logo} />
+          <Text style={styles.appName}>D-HydroQuack</Text>
+          <Text style={styles.tagline}>Future-Ready Smart Vege Farming</Text>
         </View>
 
         {/* Form */}
@@ -145,34 +145,126 @@ export default function LoginScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f7e8' },
-  scroll: { flexGrow: 1, justifyContent: 'center', padding: 24 },
-  logoWrapper: { alignItems: 'center', marginBottom: 40 },
-  logo: { width: 80, height: 80, borderRadius: 40, marginBottom: 12 },
-  appName: { fontSize: 24, fontWeight: '800', color: '#3a6b47', letterSpacing: -0.5 },
-  tagline: { fontSize: 13, color: '#888', marginTop: 4 },
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f7e8',
+  },
+
+  scroll: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    padding: 24,
+  },
+
+  logoWrapper: {
+    alignItems: 'center',
+    marginBottom: 40,
+  },
+
+  logo: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    marginBottom: 12,
+  },
+
+  appName: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#3a6b47',
+    letterSpacing: -0.5,
+  },
+
+  tagline: {
+    fontSize: 13,
+    color: '#888',
+    marginTop: 4,
+  },
+
   form: {
-    backgroundColor: '#fff', borderRadius: 20, padding: 24,
-    elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08, shadowRadius: 8,
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 24,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
   },
-  formTitle: { fontSize: 20, fontWeight: '700', color: '#333', marginBottom: 4 },
-  formSubtitle: { fontSize: 13, color: '#999', marginBottom: 24 },
+
+  formTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+
+  formSubtitle: {
+    fontSize: 13,
+    color: '#999',
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+
   inputWrapper: {
-    flexDirection: 'row', alignItems: 'center', borderWidth: 1.5,
-    borderColor: '#e0e0e0', borderRadius: 10, paddingHorizontal: 12,
-    marginBottom: 14, backgroundColor: '#fafafa',
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#e0e0e0',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    marginBottom: 14,
+    backgroundColor: '#fafafa',
   },
-  inputIcon: { marginRight: 8 },
-  input: { flex: 1, height: 48, fontSize: 14, color: '#333' },
-  eyeIcon: { padding: 4 },
+
+  inputIcon: {
+    marginRight: 8,
+  },
+
+  input: {
+    flex: 1,
+    height: 48,
+    fontSize: 14,
+    color: '#333',
+  },
+
+  eyeIcon: {
+    padding: 4,
+  },
+
   loginBtn: {
-    backgroundColor: '#3a6b47', borderRadius: 10,
-    paddingVertical: 14, alignItems: 'center', marginTop: 8,
+    backgroundColor: '#3a6b47',
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 8,
   },
-  loginBtnDisabled: { opacity: 0.6 },
-  loginBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  registerRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 20 },
-  registerText: { fontSize: 13, color: '#999' },
-  registerLink: { fontSize: 13, color: '#4a7c59', fontWeight: '700' },
+
+  loginBtnDisabled: {
+    opacity: 0.6,
+  },
+
+  loginBtnText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 15,
+  },
+
+  registerRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: 20,
+  },
+
+  registerText: {
+    fontSize: 13,
+    color: '#999',
+  },
+
+  registerLink: {
+    fontSize: 13,
+    color: '#4a7c59',
+    fontWeight: '700',
+  },
 });
